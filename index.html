@@ -5,11 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>智肺管家 EcoLung App</title>
   
+  <!-- 1. 線上載入 Tailwind CSS (排版美化) -->
   <script src="https://cdn.tailwindcss.com"></script>
   
+  <!-- 2. 線上載入 React 與 ReactDOM (前端核心) -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   
+  <!-- 3. 線上載入 Babel (在瀏覽器中直接解析 React JSX 語法) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
@@ -24,8 +27,10 @@
 </head>
 <body class="bg-slate-100">
 
+  <!-- React App 將會渲染在這個 div 之中 -->
   <div id="root"></div>
 
+  <!-- 開始編寫 React 程式碼 -->
   <script type="text/babel">
     // 從全域 React 中解構出我們需要的狀態勾子
     const { useState, useEffect } = React;
@@ -49,14 +54,20 @@
         '洗手間': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false }   
       });
 
-      // 3. 模擬數據動態增長
+      // 3. 模擬數據動態增長 (採用 immutable 深拷貝方式更新，防止 React 渲染異常)
       useEffect(() => {
         const interval = setInterval(() => {
           setCarbonDaily(prev => parseFloat((prev + 0.01).toFixed(2)));
           setCarbonCumulative(prev => parseFloat((prev + 0.00001).toFixed(5)));
           
           setSystemsData(prev => {
-            const copy = { ...prev };
+            const copy = {};
+            // 進行深拷貝
+            Object.keys(prev).forEach(loc => {
+              copy[loc] = { ...prev[loc] };
+            });
+
+            // 模擬數值波動
             Object.keys(copy).forEach(loc => {
               const sys = copy[loc];
               sys.temp = parseFloat((sys.temp + (Math.random() * 0.2 - 0.1)).toFixed(1));
