@@ -1,18 +1,18 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>智肺管家 EcoLung App</title>
+  <title>EcoLung Smart App</title>
   
-  <!-- 1. 線上載入 Tailwind CSS (排版美化) -->
+  <!-- 1. Load Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 2. 線上載入 React 與 ReactDOM (前端核心) -->
+  <!-- 2. Load React and ReactDOM -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   
-  <!-- 3. 線上載入 Babel (在瀏覽器中直接解析 React JSX 語法) -->
+  <!-- 3. Load Babel for JSX compiling -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <style>
@@ -27,34 +27,31 @@
 </head>
 <body class="bg-slate-100">
 
-  <!-- React App 將會渲染在這個 div 之中 -->
   <div id="root"></div>
 
-  <!-- 開始編寫 React 程式碼 -->
   <script type="text/babel">
-    // 從全域 React 中解構出我們需要的狀態勾子
     const { useState, useEffect } = React;
 
     function App() {
-      // 1. 初始化狀態
+      // 1. Initialize State
       const [currentTab, setCurrentTab] = useState('dashboard'); 
-      const [selectedLocation, setSelectedLocation] = useState('客廳');
+      const [selectedLocation, setSelectedLocation] = useState('Living Room');
       const [algaeCoins, setAlgaeCoins] = useState(128); 
       const [carbonDaily, setCarbonDaily] = useState(15.42); 
       const [carbonCumulative, setCarbonCumulative] = useState(452.87); 
       const [timeRange, setTimeRange] = useState('week'); 
       const [notification, setNotification] = useState(null); 
 
-      // 2. 模擬多個房間的綠藻系統數據
+      // 2. Simulated Microalgae System Data per Room
       const [systemsData, setSystemsData] = useState({
-        '客廳': { pH: 7.4, temp: 24.5, light: 450, waterLevel: 92, health: 'excellent', lightOn: false, pumpOn: false },
-        '主人房': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: true, pumpOn: false },
-        '書房': { pH: 6.8, temp: 25.1, light: 320, waterLevel: 40, health: 'warning', lightOn: false, pumpOn: false }, 
-        '廚房': { pH: 7.5, temp: 26.3, light: 600, waterLevel: 95, health: 'excellent', lightOn: false, pumpOn: true },
-        '洗手間': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false }   
+        'Living Room': { pH: 7.4, temp: 24.5, light: 450, waterLevel: 92, health: 'excellent', lightOn: false, pumpOn: false },
+        'Master Bedroom': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: true, pumpOn: false },
+        'Study Room': { pH: 6.8, temp: 25.1, light: 320, waterLevel: 40, health: 'warning', lightOn: false, pumpOn: false }, 
+        'Kitchen': { pH: 7.5, temp: 26.3, light: 600, waterLevel: 95, health: 'excellent', lightOn: false, pumpOn: true },
+        'Bathroom': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false }   
       });
 
-      // 3. 模擬數據動態增長 (採用 immutable 深拷貝方式更新，防止 React 渲染異常)
+      // 3. Dynamic Real-Time Data Simulation
       useEffect(() => {
         const interval = setInterval(() => {
           setCarbonDaily(prev => parseFloat((prev + 0.01).toFixed(2)));
@@ -62,291 +59,4 @@
           
           setSystemsData(prev => {
             const copy = {};
-            // 進行深拷貝
             Object.keys(prev).forEach(loc => {
-              copy[loc] = { ...prev[loc] };
-            });
-
-            // 模擬數值波動
-            Object.keys(copy).forEach(loc => {
-              const sys = copy[loc];
-              sys.temp = parseFloat((sys.temp + (Math.random() * 0.2 - 0.1)).toFixed(1));
-              if (!sys.lightOn) {
-                sys.light = Math.max(10, Math.min(1000, Math.round(sys.light + (Math.random() * 10 - 5))));
-              } else {
-                sys.light = 800; 
-              }
-            });
-            return copy;
-          });
-        }, 2000);
-        return () => clearInterval(interval);
-      }, []);
-
-      const triggerNotification = (message, type = 'success') => {
-        setNotification({ message, type });
-        setTimeout(() => setNotification(null), 3000);
-      };
-
-      const toggleHardware = (loc, key) => {
-        setSystemsData(prev => {
-          const updatedLoc = { ...prev[loc], [key]: !prev[loc][key] };
-          if (key === 'lightOn') {
-            updatedLoc.light = updatedLoc.lightOn ? 800 : 300;
-          }
-          triggerNotification(`${loc}的 ${key === 'lightOn' ? '智能補光燈' : '循環水泵'} 已遠程切換`, 'info');
-          return { ...prev, [loc]: updatedLoc };
-        });
-      };
-
-      const handleRedeem = (itemName, cost) => {
-        if (algaeCoins >= cost) {
-          setAlgaeCoins(prev => prev - cost);
-          triggerNotification(`成功兌換 [${itemName}]！已扣除 ${cost} 綠藻幣。`, 'success');
-        } else {
-          triggerNotification(`餘額不足！兌換 [${itemName}] 需要 ${cost} 綠藻幣。`, 'error');
-        }
-      };
-
-      const currentData = systemsData[selectedLocation] || systemsData['客廳'];
-
-      const getHealthDetails = (health) => {
-        switch (health) {
-          case 'excellent': return { color: 'text-emerald-600 bg-emerald-50 border-emerald-200', text: '健康茁壯', face: '😊' };
-          case 'good': return { color: 'text-green-600 bg-green-50 border-green-200', text: '狀態穩定', face: '🙂' };
-          case 'warning': return { color: 'text-amber-600 bg-amber-50 border-amber-200', text: '水位過低預警', face: '😐' };
-          case 'danger': return { color: 'text-rose-600 bg-rose-50 border-rose-200', text: '生長受阻 (pH異常)', face: '😢' };
-          default: return { color: 'text-gray-600 bg-gray-50 border-gray-200', text: '無數據', face: '⚪' };
-        }
-      };
-
-      const healthDetail = getHealthDetails(currentData.health);
-
-      return (
-        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-0 md:p-6 font-sans">
-          <div className="w-full max-w-md bg-white min-h-[812px] md:rounded-3xl shadow-2xl overflow-hidden flex flex-col relative border border-slate-200">
-            
-            {/* 頂部狀態列 */}
-            <div className="bg-emerald-800 text-white px-6 pt-3 pb-2 flex justify-between items-center text-xs">
-              <span>智肺管家 EcoLung v1.2</span>
-              <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>IoT 雲端已連線</span>
-              </div>
-            </div>
-
-            {/* 彈出通知 */}
-            {notification && (
-              <div className={`absolute top-12 left-4 right-4 z-50 p-3 rounded-xl shadow-lg border text-sm flex items-center space-x-2 ${
-                notification.type === 'success' ? 'bg-emerald-500 text-white border-emerald-600' :
-                notification.type === 'error' ? 'bg-rose-500 text-white border-rose-600' : 'bg-sky-600 text-white border-sky-700'
-              }`}>
-                <span className="font-bold">提示:</span>
-                <span>{notification.message}</span>
-              </div>
-            )}
-
-            {/* 頂部導航 */}
-            <div className="bg-emerald-700 text-white px-6 py-4 rounded-b-3xl shadow-md">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-xs text-emerald-200">綠色低碳智能家居</p>
-                  <h1 className="text-xl font-bold">我的綠色微型森林</h1>
-                </div>
-                <div className="bg-emerald-600/50 border border-emerald-400/30 rounded-full px-3 py-1 flex items-center space-x-1">
-                  <span className="text-amber-400 font-bold">🪙</span>
-                  <span className="text-sm font-semibold">{algaeCoins}</span>
-                </div>
-              </div>
-
-              {/* 下拉式選單 */}
-              <div className="mt-4 flex items-center bg-emerald-800/60 rounded-xl px-3 py-2 border border-emerald-500/30">
-                <span className="text-emerald-200 text-sm mr-2">📍 系統位置：</span>
-                <select 
-                  value={selectedLocation} 
-                  onChange={(e) => {
-                    setSelectedLocation(e.target.value);
-                    triggerNotification(`已載入 [${e.target.value}] 數據`, 'info');
-                  }}
-                  className="bg-transparent text-white font-bold focus:outline-none cursor-pointer flex-grow text-sm"
-                >
-                  <option value="客廳" className="text-slate-800">🛋️ 客廳系統 (主機)</option>
-                  <option value="主人房" className="text-slate-800">🛏️ 主人房系統</option>
-                  <option value="書房" className="text-slate-800">📚 書房系統 (缺水預警)</option>
-                  <option value="廚房" className="text-slate-800">🍳 廚房系統 (運作中)</option>
-                  <option value="洗手間" className="text-slate-800">🧼 洗手間系統 (酸度異常)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* 主要內容 */}
-            <div className="flex-grow overflow-y-auto px-5 py-4 pb-20">
-              
-              {/* TAB 1: 實時監控 */}
-              {currentTab === 'dashboard' && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl p-4 border border-emerald-100 flex flex-col items-center relative overflow-hidden">
-                    <span className="absolute top-2 left-2 text-xs font-semibold px-2 py-1 rounded bg-white/80 border border-emerald-200/50">生物反應器動態</span>
-                    <div className="w-28 h-28 my-2 flex items-center justify-center relative">
-                      <div className={`absolute inset-0 rounded-full bg-emerald-200/40 blur-xl ${currentData.lightOn ? 'opacity-100 scale-110' : 'opacity-40'}`}></div>
-                      <div className={`w-24 h-24 rounded-full border-4 flex items-center justify-center text-5xl transition-all duration-500 shadow-inner ${
-                        currentData.health === 'excellent' ? 'bg-emerald-400 border-emerald-600 scale-105' :
-                        currentData.health === 'good' ? 'bg-green-300 border-green-500' :
-                        currentData.health === 'warning' ? 'bg-amber-300 border-amber-500' : 'bg-rose-300 border-rose-500'
-                      }`}>{healthDetail.face}</div>
-                    </div>
-                    <div className={`w-full text-center py-1.5 px-4 rounded-xl border text-sm font-bold ${healthDetail.color}`}>系統健康度：{healthDetail.text}</div>
-                  </div>
-
-                  {/* 數據網格 */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-3">
-                      <div className="text-lg">🧪</div>
-                      <div>
-                        <p className="text-xs text-slate-400">pH 酸鹼值</p>
-                        <p className="text-lg font-bold text-slate-800">{currentData.pH}</p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-3">
-                      <div className="text-lg">🌡️</div>
-                      <div>
-                        <p className="text-xs text-slate-400">系統水溫</p>
-                        <p className="text-lg font-bold text-slate-800">{currentData.temp}°C</p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-3">
-                      <div className="text-lg">☀️</div>
-                      <div>
-                        <p className="text-xs text-slate-400">光照強度</p>
-                        <p className="text-lg font-bold text-slate-800">{currentData.light} <span className="text-xs font-normal text-slate-400">Lux</span></p>
-                      </div>
-                    </div>
-                    <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center space-x-3">
-                      <div className="text-lg">💧</div>
-                      <div>
-                        <p className="text-xs text-slate-400">反應器水位</p>
-                        <p className="text-lg font-bold text-slate-800">{currentData.waterLevel}%</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* IoT 控制 */}
-                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-800 mb-3">🎛️ 遠程 IoT 設備智控</h3>
-                    <div className="flex justify-between space-x-3">
-                      <button onClick={() => toggleHardware(selectedLocation, 'lightOn')} className={`flex-1 p-3 rounded-xl border flex flex-col items-center ${currentData.lightOn ? 'bg-amber-50 border-amber-300 text-amber-700 font-bold' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
-                        <span className="text-xl mb-1">{currentData.lightOn ? '💡' : '🔌'}</span>
-                        <span className="text-xs">智能補光燈</span>
-                      </button>
-                      <button onClick={() => toggleHardware(selectedLocation, 'pumpOn')} className={`flex-1 p-3 rounded-xl border flex flex-col items-center ${currentData.pumpOn ? 'bg-sky-50 border-sky-300 text-sky-700 font-bold' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
-                        <span className="text-xl mb-1">{currentData.pumpOn ? '🔄' : '⏹️'}</span>
-                        <span className="text-xs">自動循環泵</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: 減碳足跡 */}
-              {currentTab === 'carbon' && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-gradient-to-br from-emerald-800 to-teal-700 text-white rounded-2xl p-5 shadow-lg">
-                    <p className="text-xs text-emerald-200 font-semibold">今日二氧化碳封存量</p>
-                    <div className="text-4xl font-extrabold tracking-tight tabular-nums mt-1">{carbonDaily} <span className="text-sm font-normal">克 (g)</span></div>
-                    <div className="border-t border-emerald-600/50 my-4"></div>
-                    <p className="text-xs text-emerald-200 font-semibold">全屋累計封存量 (大灣區互聯)</p>
-                    <div className="text-3xl font-extrabold tracking-tight tabular-nums mt-1">{carbonCumulative} <span className="text-sm font-normal">公斤 (kg)</span></div>
-                  </div>
-
-                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-800 mb-3">🌳 生態成就等值換算</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-100 text-center">
-                        <span className="text-2xl">🚗</span>
-                        <p className="text-[10px] text-slate-500">相當於少開私家車</p>
-                        <p className="text-base font-extrabold text-sky-700">{(carbonCumulative * 5.2).toFixed(1)} 公里</p>
-                      </div>
-                      <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 text-center">
-                        <span className="text-2xl">🌲</span>
-                        <p className="text-[10px] text-slate-500">相當於種植了</p>
-                        <p className="text-base font-extrabold text-emerald-700">{(carbonCumulative * 0.08).toFixed(2)} 棵樟樹</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: 碳幣商城 */}
-              {currentTab === 'rewards' && (
-                <div className="space-y-3 animate-fadeIn">
-                  <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-4 rounded-2xl shadow-sm">
-                    <p className="text-xs text-amber-100">我的可用碳幣</p>
-                    <p className="text-2xl font-black mt-1">🪙 {algaeCoins} <span className="text-sm font-normal">綠藻幣</span></p>
-                  </div>
-                  <h3 className="text-sm font-bold text-slate-800 mb-1">🎁 綠色好禮限量兌換</h3>
-                  
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-3xl">🪥</div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800">天然環保竹牙刷</h4>
-                        <p className="text-xs font-bold text-amber-600">🪙 30 幣</p>
-                      </div>
-                    </div>
-                    <button onClick={() => handleRedeem('天然環保竹牙刷', 30)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">兌換</button>
-                  </div>
-
-                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
-                    <div className="flex items-center space-x-3">
-                      <div className="text-3xl">🧻</div>
-                      <div>
-                        <h4 className="text-xs font-bold text-slate-800">環保無漂白竹漿紙巾</h4>
-                        <p className="text-xs font-bold text-amber-600">🪙 50 幣</p>
-                      </div>
-                    </div>
-                    <button onClick={() => handleRedeem('環保無漂白竹漿紙巾', 50)} className="bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">兌換</button>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 4: 社區回收 */}
-              {currentTab === 'control' && (
-                <div className="space-y-4 animate-fadeIn">
-                  <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-                    <h3 className="text-sm font-bold text-slate-800 mb-3">🏆 大灣區減碳英雄榜 (本周)</h3>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex justify-between p-2 rounded bg-amber-50 border border-amber-200/50"><span>🥇 1. 深圳蛇口綠色社區</span><span className="font-bold">1,245.8 kg</span></div>
-                      <div className="flex justify-between p-2 rounded bg-emerald-500 text-white font-bold"><span>🎯 14. 你的綠色智肺 (你)</span><span>{carbonCumulative.toFixed(1)} kg</span></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </div>
-
-            {/* 底部導航欄 */}
-            <div className="absolute bottom-0 left-0 right-0 bg-white/95 border-t border-slate-100 py-2 flex justify-around items-center z-40 rounded-t-2xl shadow-lg">
-              <button onClick={() => setCurrentTab('dashboard')} className={`flex flex-col items-center ${currentTab === 'dashboard' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                <span className="text-xl">🛋️</span><span className="text-[10px]">實時監控</span>
-              </button>
-              <button onClick={() => setCurrentTab('carbon')} className={`flex flex-col items-center ${currentTab === 'carbon' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                <span className="text-xl">🍃</span><span className="text-[10px]">減碳足跡</span>
-              </button>
-              <button onClick={() => setCurrentTab('rewards')} className={`flex flex-col items-center ${currentTab === 'rewards' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                <span className="text-xl">🎁</span><span className="text-[10px]">碳幣商城</span>
-              </button>
-              <button onClick={() => setCurrentTab('control')} className={`flex flex-col items-center ${currentTab === 'control' ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}>
-                <span className="text-xl">🏆</span><span className="text-[10px]">社區英雄</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
