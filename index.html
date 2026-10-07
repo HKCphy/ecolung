@@ -3,60 +3,609 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>EcoLung Smart App</title>
+  <title>EcoLung - Smart Micro-Forest & Air Care</title>
   
-  <!-- 1. Load Tailwind CSS -->
+  <!-- 1. Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   
-  <!-- 2. Load React and ReactDOM -->
+  <!-- 2. React & ReactDOM CDN -->
   <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
   
-  <!-- 3. Load Babel for JSX compiling -->
+  <!-- 3. Babel Standalone for inline JSX parsing -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- 4. Lucide / FontAwesome Icons for visuals -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
+      from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); opacity: 0.8; }
+      50% { transform: scale(1.08); opacity: 1; }
+    }
+    @keyframes bubbleRise {
+      0% { transform: translateY(0) scale(0.8); opacity: 0.3; }
+      50% { opacity: 0.8; }
+      100% { transform: translateY(-40px) scale(1.2); opacity: 0; }
+    }
     .animate-fadeIn {
-      animation: fadeIn 0.3s ease-out forwards;
+      animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .animate-pulseGlow {
+      animation: pulseGlow 3s ease-in-out infinite;
+    }
+    .bubble {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.4);
+      animation: bubbleRise 2.5s infinite ease-in;
     }
   </style>
 </head>
-<body class="bg-slate-100">
+<body class="bg-slate-900 text-slate-800 antialiased min-h-screen flex items-center justify-center p-0 sm:p-4">
 
-  <div id="root"></div>
+  <!-- React mounting root -->
+  <div id="root" class="w-full flex justify-center"></div>
 
   <script type="text/babel">
     const { useState, useEffect } = React;
 
     function App() {
-      // 1. Initialize State
       const [currentTab, setCurrentTab] = useState('dashboard'); 
       const [selectedLocation, setSelectedLocation] = useState('Living Room');
       const [algaeCoins, setAlgaeCoins] = useState(128); 
       const [carbonDaily, setCarbonDaily] = useState(15.42); 
       const [carbonCumulative, setCarbonCumulative] = useState(452.87); 
-      const [timeRange, setTimeRange] = useState('week'); 
       const [notification, setNotification] = useState(null); 
+      const [isHarvesting, setIsHarvesting] = useState(false);
 
-      // 2. Simulated Microalgae System Data per Room
+      // Multi-room bioreactor monitoring data state
       const [systemsData, setSystemsData] = useState({
-        'Living Room': { pH: 7.4, temp: 24.5, light: 450, waterLevel: 92, health: 'excellent', lightOn: false, pumpOn: false },
-        'Master Bedroom': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: true, pumpOn: false },
-        'Study Room': { pH: 6.8, temp: 25.1, light: 320, waterLevel: 40, health: 'warning', lightOn: false, pumpOn: false }, 
-        'Kitchen': { pH: 7.5, temp: 26.3, light: 600, waterLevel: 95, health: 'excellent', lightOn: false, pumpOn: true },
-        'Bathroom': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false }   
+        'Living Room': { pH: 7.4, temp: 24.5, light: 450, waterLevel: 92, health: 'excellent', lightOn: true, pumpOn: true, biomass: 88 },
+        'Master Bedroom': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: false, pumpOn: true, biomass: 64 },
+        'Study Room': { pH: 6.8, temp: 25.1, light: 320, waterLevel: 38, health: 'warning', lightOn: false, pumpOn: false, biomass: 42 }, 
+        'Kitchen': { pH: 7.5, temp: 26.3, light: 600, waterLevel: 95, health: 'excellent', lightOn: true, pumpOn: true, biomass: 91 },
+        'Bathroom': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false, biomass: 25 }   
       });
 
-      // 3. Dynamic Real-Time Data Simulation
       useEffect(() => {
         const interval = setInterval(() => {
+          // Increment sequestration numbers realistically
           setCarbonDaily(prev => parseFloat((prev + 0.01).toFixed(2)));
-          setCarbonCumulative(prev => parseFloat((prev + 0.00001).toFixed(5)));
+          setCarbonCumulative(prev => parseFloat((prev + 0.00005).toFixed(5)));
           
           setSystemsData(prev => {
             const copy = {};
             Object.keys(prev).forEach(loc => {
+              copy[loc] = { ...prev[loc] };
+            });
+
+            // Simulate micro environment fluctuations
+            Object.keys(copy).forEach(loc => {
+              const sys = copy[loc];
+              sys.temp = parseFloat((sys.temp + (Math.random() * 0.2 - 0.1)).toFixed(1));
+              
+              if (sys.lightOn) {
+                sys.light = Math.min(1000, Math.max(750, Math.round(sys.light + (Math.random() * 12 - 6))));
+              } else {
+                sys.light = Math.max(10, Math.min(400, Math.round(sys.light + (Math.random() * 10 - 5))));
+              }
+
+              // Slowly grow biomass if conditions are ideal
+              if (sys.health === 'excellent' && sys.biomass < 99) {
+                sys.biomass = Math.min(100, parseFloat((sys.biomass + 0.05).toFixed(1)));
+              }
+            });
+            return copy;
+          });
+        }, 2000);
+
+        return () => clearInterval(interval);
+      }, []);
+
+      // Helper function to show notifications
+      const triggerNotification = (message, type = 'success') => {
+        setNotification({ message, type });
+        setTimeout(() => setNotification(null), 3200);
+      };
+
+      const toggleHardware = (loc, key) => {
+        setSystemsData(prev => {
+          const updatedLoc = { ...prev[loc], [key]: !prev[loc][key] };
+          if (key === 'lightOn') {
+            updatedLoc.light = updatedLoc.lightOn ? 800 : 250;
+          }
+          const hardwareName = key === 'lightOn' ? 'Smart Grow Light' : 'Circulation Pump';
+          const statusText = updatedLoc[key] ? 'Activated' : 'Deactivated';
+          triggerNotification(`${hardwareName} in ${loc} ${statusText}`, 'info');
+          return { ...prev, [loc]: updatedLoc };
+        });
+      };
+
+      // Handle eco rewards redemption
+      const handleRedeem = (itemName, cost) => {
+        if (algaeCoins >= cost) {
+          setAlgaeCoins(prev => prev - cost);
+          triggerNotification(`Redeemed [${itemName}]! Deducted ${cost} Algae Coins.`, 'success');
+        } else {
+          triggerNotification(`Insufficient coins! Need ${cost} Algae Coins for [${itemName}].`, 'error');
+        }
+      };
+
+      // Handle manual biomass harvest action
+      const handleHarvestBiomass = () => {
+        const sys = systemsData[selectedLocation];
+        if (!sys || sys.biomass < 50) {
+          triggerNotification(`Biomass density in ${selectedLocation} is too low to harvest (< 50%).`, 'error');
+          return;
+        }
+
+        setIsHarvesting(true);
+        setTimeout(() => {
+          const rewardCoins = Math.floor(sys.biomass * 0.5);
+          setAlgaeCoins(prev => prev + rewardCoins);
+          setSystemsData(prev => ({
+            ...prev,
+            [selectedLocation]: { ...prev[selectedLocation], biomass: 20 }
+          }));
+          setIsHarvesting(false);
+          triggerNotification(`Harvested biomass from ${selectedLocation}! Earned +${rewardCoins} Algae Coins.`, 'success');
+        }, 1200);
+      };
+
+      const currentData = systemsData[selectedLocation] || systemsData['Living Room'];
+
+      const getHealthDetails = (health) => {
+        switch (health) {
+          case 'excellent': 
+            return { color: 'text-emerald-700 bg-emerald-50 border-emerald-200', text: 'Thriving & Healthy', icon: 'fa-face-smile-beam', badge: 'bg-emerald-500' };
+          case 'good': 
+            return { color: 'text-teal-700 bg-teal-50 border-teal-200', text: 'Stable Growth', icon: 'fa-face-smile', badge: 'bg-teal-500' };
+          case 'warning': 
+            return { color: 'text-amber-700 bg-amber-50 border-amber-200', text: 'Low Water Level Alert', icon: 'fa-face-meh', badge: 'bg-amber-500' };
+          case 'danger': 
+            return { color: 'text-rose-700 bg-rose-50 border-rose-200', text: 'Growth Impaired (pH Anomaly)', icon: 'fa-face-frown', badge: 'bg-rose-500' };
+          default: 
+            return { color: 'text-slate-600 bg-slate-50 border-slate-200', text: 'No Signal', icon: 'fa-circle-question', badge: 'bg-slate-400' };
+        }
+      };
+
+      const healthDetail = getHealthDetails(currentData.health);
+
+      return (
+        <div className="w-full max-w-md bg-slate-50 min-h-[844px] md:rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col relative border border-slate-700/30">
+          
+          {}
+          <div className="bg-emerald-950 text-emerald-100 px-6 pt-3 pb-2 flex justify-between items-center text-xs border-b border-emerald-900/50">
+            <span className="font-semibold tracking-wide flex items-center gap-1.5">
+              <i className="fa-solid fa-leaf text-emerald-400"></i> EcoLung v1.2
+            </span>
+            <div className="flex items-center space-x-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+              <span className="text-[11px] text-emerald-300/80 font-medium">IoT Cloud Online</span>
+            </div>
+          </div>
+
+          {}
+          {notification && (
+            <div className={`absolute top-14 left-4 right-4 z-50 p-3.5 rounded-2xl shadow-xl border text-xs font-semibold flex items-center space-x-3 transition-all duration-300 animate-fadeIn ${
+              notification.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' :
+              notification.type === 'error' ? 'bg-rose-600 text-white border-rose-500' : 'bg-sky-600 text-white border-sky-500'
+            }`}>
+              <i className={`fa-solid ${
+                notification.type === 'success' ? 'fa-circle-check' :
+                notification.type === 'error' ? 'fa-circle-exclamation' : 'fa-circle-info'
+              } text-base`}></i>
+              <span className="flex-grow">{notification.message}</span>
+            </div>
+          )}
+
+          {}
+          <div className="bg-gradient-to-b from-emerald-800 to-emerald-900 text-white px-6 pt-5 pb-6 rounded-b-[2rem] shadow-lg relative">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-[11px] text-emerald-200 font-medium tracking-wider uppercase">Smart Micro-Forest Home</p>
+                <h1 className="text-xl font-bold tracking-tight">EcoLung Dashboard</h1>
+              </div>
+              <div className="bg-emerald-950/60 backdrop-blur-md border border-emerald-400/30 rounded-full px-3.5 py-1.5 flex items-center space-x-2 shadow-inner">
+                <i className="fa-solid fa-coins text-amber-400 text-sm"></i>
+                <span className="text-sm font-extrabold text-amber-300">{algaeCoins}</span>
+                <span className="text-[10px] text-emerald-200/80">Coins</span>
+              </div>
+            </div>
+
+            {/* Room Location Selector Dropdown */}
+            <div className="mt-4 flex items-center bg-emerald-950/40 backdrop-blur-sm rounded-xl px-3.5 py-2.5 border border-emerald-500/20 shadow-sm">
+              <i className="fa-solid fa-location-dot text-emerald-300 text-sm mr-2.5"></i>
+              <span className="text-emerald-200/80 text-xs font-medium mr-2">Location:</span>
+              <select 
+                value={selectedLocation} 
+                onChange={(e) => {
+                  setSelectedLocation(e.target.value);
+                  triggerNotification(`Loaded telemetry for [${e.target.value}]`, 'info');
+                }}
+                className="bg-transparent text-white font-bold focus:outline-none cursor-pointer flex-grow text-xs tracking-wide border-none"
+              >
+                <option value="Living Room" className="text-slate-800">🛋️ Living Room (Main Unit)</option>
+                <option value="Master Bedroom" className="text-slate-800">🛏️ Master Bedroom</option>
+                <option value="Study Room" className="text-slate-800">📚 Study Room (Low Water)</option>
+                <option value="Kitchen" className="text-slate-800">🍳 Kitchen (Active)</option>
+                <option value="Bathroom" className="text-slate-800">🧼 Bathroom (pH Alert)</option>
+              </select>
+            </div>
+          </div>
+
+          {}
+          <div className="flex-grow overflow-y-auto px-5 py-4 pb-24">
+            
+            {/* TAB 1: REAL-TIME MONITORING DASHBOARD */}
+            {currentTab === 'dashboard' && (
+              <div className="space-y-4 animate-fadeIn">
+                
+                {/* Micro-Algae Bioreactor Visual Card */}
+                <div className="bg-gradient-to-br from-emerald-50 via-teal-50 to-emerald-100/60 rounded-2xl p-4 border border-emerald-200/60 flex flex-col items-center relative overflow-hidden shadow-sm">
+                  <span className="absolute top-3 left-3 text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-full bg-white/90 text-emerald-800 border border-emerald-200 shadow-2xs">
+                    Bioreactor Core
+                  </span>
+                  
+                  <span className="absolute top-3 right-3 text-[10px] font-semibold text-emerald-700 bg-emerald-100/80 px-2.5 py-1 rounded-full">
+                    Biomass Density: <strong className="font-bold">{currentData.biomass}%</strong>
+                  </span>
+
+                  {/* Animated Visual Globe */}
+                  <div className="w-32 h-32 my-3 flex items-center justify-center relative">
+                    <div className={`absolute inset-0 rounded-full bg-emerald-400/30 blur-2xl transition-all duration-500 ${currentData.lightOn ? 'opacity-100 scale-125' : 'opacity-20'}`}></div>
+                    
+                    {/* Floating simulated bubbles */}
+                    {currentData.pumpOn && (
+                      <>
+                        <div className="bubble w-2.5 h-2.5 left-8 bottom-6"></div>
+                        <div className="bubble w-3.5 h-3.5 left-16 bottom-4" style={{ animationDelay: '0.8s' }}></div>
+                        <div className="bubble w-2 h-2 right-10 bottom-8" style={{ animationDelay: '1.4s' }}></div>
+                      </>
+                    )}
+
+                    <div className={`w-28 h-28 rounded-full border-4 flex flex-col items-center justify-center transition-all duration-500 shadow-inner relative z-10 ${
+                      currentData.health === 'excellent' ? 'bg-gradient-to-tr from-emerald-500 to-teal-400 border-emerald-600 text-white shadow-emerald-300' :
+                      currentData.health === 'good' ? 'bg-gradient-to-tr from-emerald-400 to-green-300 border-green-500 text-white' :
+                      currentData.health === 'warning' ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 border-amber-500 text-slate-800' : 'bg-gradient-to-tr from-rose-400 to-pink-300 border-rose-500 text-white'
+                    }`}>
+                      <i className={`fa-solid ${healthDetail.icon} text-4xl drop-shadow-md mb-1`}></i>
+                      <span className="text-[10px] font-bold tracking-wider uppercase opacity-90">Bio-Status</span>
+                    </div>
+                  </div>
+
+                  <div className={`w-full text-center py-2 px-4 rounded-xl border text-xs font-bold flex items-center justify-center space-x-2 ${healthDetail.color}`}>
+                    <span className={`w-2 h-2 rounded-full ${healthDetail.badge} animate-pulse`}></span>
+                    <span>System Status: {healthDetail.text}</span>
+                  </div>
+
+                  {/* Quick Harvest Biomass Button */}
+                  <button 
+                    onClick={handleHarvestBiomass}
+                    disabled={isHarvesting || currentData.biomass < 50}
+                    className={`mt-3 w-full py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 flex items-center justify-center space-x-2 ${
+                      currentData.biomass >= 50 && !isHarvesting
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md active:scale-95'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                    }`}
+                  >
+                    <i className={`fa-solid ${isHarvesting ? 'fa-spinner fa-spin' : 'fa-wheat-awn'}`}></i>
+                    <span>{isHarvesting ? 'Extracting Micro-Algae...' : currentData.biomass >= 50 ? 'Harvest Bio-Density (+Coins)' : 'Biomass Low (Requires >50%)'}</span>
+                  </button>
+                </div>
+
+                {/* Sensor Telemetry Grid */}
+                {}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center text-lg font-bold">
+                      <i className="fa-solid fa-flask-vial"></i>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">pH Level</p>
+                      <p className="text-base font-black text-slate-800">{currentData.pH}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg font-bold">
+                      <i className="fa-solid fa-temperature-half"></i>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Water Temp</p>
+                      <p className="text-base font-black text-slate-800">{currentData.temp} <span className="text-xs font-medium text-slate-400">°C</span></p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center text-lg font-bold">
+                      <i className="fa-solid fa-sun"></i>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Light Intensity</p>
+                      <p className="text-base font-black text-slate-800">{currentData.light} <span className="text-xs font-medium text-slate-400">Lux</span></p>
+                    </div>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg font-bold">
+                      <i className="fa-solid fa-droplet"></i>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Water Level</p>
+                      <p className="text-base font-black text-slate-800">{currentData.waterLevel} <span className="text-xs font-medium text-slate-400">%</span></p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remote IoT Hardware Controls */}
+                {}
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                  <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-sliders text-emerald-600"></i> Remote IoT Equipment Control
+                  </h3>
+                  <div className="flex justify-between space-x-3">
+                    <button 
+                      onClick={() => toggleHardware(selectedLocation, 'lightOn')} 
+                      className={`flex-1 p-3.5 rounded-xl border flex flex-col items-center transition-all duration-200 ${
+                        currentData.lightOn 
+                          ? 'bg-amber-500 text-white border-amber-600 shadow-md shadow-amber-200' 
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <i className={`fa-solid ${currentData.lightOn ? 'fa-lightbulb text-amber-200' : 'fa-power-off text-slate-400'} text-xl mb-1.5`}></i>
+                      <span className="text-xs font-bold">Grow Light</span>
+                      <span className="text-[10px] opacity-80 mt-0.5">{currentData.lightOn ? 'ACTIVE' : 'OFF'}</span>
+                    </button>
+
+                    <button 
+                      onClick={() => toggleHardware(selectedLocation, 'pumpOn')} 
+                      className={`flex-1 p-3.5 rounded-xl border flex flex-col items-center transition-all duration-200 ${
+                        currentData.pumpOn 
+                          ? 'bg-sky-600 text-white border-sky-700 shadow-md shadow-sky-200' 
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <i className={`fa-solid ${currentData.pumpOn ? 'fa-rotate text-sky-200 fa-spin' : 'fa-circle-stop text-slate-400'} text-xl mb-1.5`}></i>
+                      <span className="text-xs font-bold">Water Pump</span>
+                      <span className="text-[10px] opacity-80 mt-0.5">{currentData.pumpOn ? 'CIRCULATING' : 'STOPPED'}</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: CARBON FOOTPRINT & SEQUESTRATION */}
+            {}
+            {currentTab === 'carbon' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 text-white rounded-2xl p-5 shadow-lg border border-emerald-700/50 relative overflow-hidden">
+                  <i className="fa-solid fa-leaf absolute -right-4 -bottom-4 text-8xl opacity-10 text-emerald-300"></i>
+                  
+                  <p className="text-[11px] text-emerald-200 font-bold uppercase tracking-wider">Today's CO₂ Sequestration</p>
+                  <div className="text-4xl font-black tracking-tight tabular-nums mt-1 text-emerald-300">
+                    {carbonDaily} <span className="text-sm font-semibold text-white">Grams (g)</span>
+                  </div>
+                  
+                  <div className="border-t border-emerald-700/60 my-4"></div>
+                  
+                  <p className="text-[11px] text-emerald-200 font-bold uppercase tracking-wider">Cumulative Whole-Home Sequestration</p>
+                  <div className="text-3xl font-extrabold tracking-tight tabular-nums mt-1 text-white">
+                    {carbonCumulative} <span className="text-sm font-semibold text-emerald-200">Kg</span>
+                  </div>
+                </div>
+
+                {/* Ecological Equivalents Breakdown */}
+                {}
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                  <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-tree text-emerald-600"></i> Ecological Impact Equivalents
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-sky-50/70 p-3.5 rounded-2xl border border-sky-100 text-center">
+                      <i className="fa-solid fa-car-side text-sky-600 text-2xl mb-1"></i>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Car Miles Avoided</p>
+                      <p className="text-base font-extrabold text-sky-800 mt-0.5">{(carbonCumulative * 5.2).toFixed(1)} km</p>
+                    </div>
+
+                    <div className="bg-emerald-50/70 p-3.5 rounded-2xl border border-emerald-100 text-center">
+                      <i className="fa-solid fa-tree text-emerald-600 text-2xl mb-1"></i>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Trees Equivalent</p>
+                      <p className="text-base font-extrabold text-emerald-800 mt-0.5">{(carbonCumulative * 0.08).toFixed(2)} Trees</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Weekly Carbon Capture Bar Chart */}
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                  <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-chart-column text-emerald-600"></i> Weekly Carbon Capture (g)
+                  </h3>
+                  <div className="flex justify-between items-end h-28 pt-4 px-2">
+                    {[
+                      { day: 'Mon', val: 12.4 },
+                      { day: 'Tue', val: 14.1 },
+                      { day: 'Wed', val: 13.8 },
+                      { day: 'Thu', val: 15.2 },
+                      { day: 'Fri', val: 14.9 },
+                      { day: 'Sat', val: 16.0 },
+                      { day: 'Sun', val: carbonDaily }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex flex-col items-center flex-1 mx-0.5">
+                        <span className="text-[9px] font-bold text-slate-500 mb-1">{item.val.toFixed(0)}</span>
+                        <div 
+                          className={`w-full max-w-[18px] rounded-t-md transition-all duration-500 ${
+                            idx === 6 ? 'bg-emerald-500' : 'bg-emerald-200'
+                          }`}
+                          style={{ height: `${(item.val / 20) * 100}%` }}
+                        ></div>
+                        <span className="text-[9px] font-semibold text-slate-400 mt-1">{item.day}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 3: ALGAE CARBON REWARDS MARKETPLACE */}
+            {}
+            {currentTab === 'rewards' && (
+              <div className="space-y-3.5 animate-fadeIn">
+                <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-4.5 rounded-2xl shadow-md flex justify-between items-center">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-100">Available Algae Balance</p>
+                    <p className="text-2xl font-black mt-0.5 flex items-center gap-2">
+                      <i className="fa-solid fa-coins text-amber-200"></i> {algaeCoins} <span className="text-xs font-normal">Coins</span>
+                    </p>
+                  </div>
+                  <div className="bg-amber-700/40 px-3 py-1.5 rounded-xl border border-amber-300/30 text-xs font-semibold">
+                    Tier 2 Eco Defender
+                  </div>
+                </div>
+
+                <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider pt-1 flex items-center gap-2">
+                  <i className="fa-solid fa-gift text-emerald-600"></i> Green Rewards Marketplace
+                </h3>
+
+                {/* Reward Items List */}
+                {[
+                  { name: 'Eco Bamboo Toothbrush Set', cost: 30, icon: 'fa-tooth', color: 'bg-emerald-50 text-emerald-600' },
+                  { name: 'Unbleached Bamboo Tissues (3pk)', cost: 50, icon: 'fa-box-tissue', color: 'bg-amber-50 text-amber-600' },
+                  { name: 'Bio-Fertilizer Extract Capsule', cost: 40, icon: 'fa-seedling', color: 'bg-teal-50 text-teal-600' },
+                  { name: 'Smart Water Refill Cartridge', cost: 80, icon: 'fa-filter', color: 'bg-sky-50 text-sky-600' }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-white p-3.5 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm hover:border-emerald-200 transition-all">
+                    <div className="flex items-center space-x-3.5">
+                      <div className={`w-11 h-11 rounded-xl ${item.color} flex items-center justify-center text-lg`}>
+                        <i className={`fa-solid ${item.icon}`}></i>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-800">{item.name}</h4>
+                        <p className="text-xs font-black text-amber-600 mt-0.5 flex items-center gap-1">
+                          <i className="fa-solid fa-coins text-xs"></i> {item.cost} Coins
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleRedeem(item.name, item.cost)} 
+                      className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all duration-200 shadow-sm"
+                    >
+                      Redeem
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TAB 4: COMMUNITY HEROES LEADERBOARD */}
+            {}
+            {currentTab === 'control' && (
+              <div className="space-y-4 animate-fadeIn">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                  <h3 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-trophy text-amber-500"></i> GBA Eco Leaders (This Week)
+                  </h3>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex justify-between items-center p-3 rounded-xl bg-amber-50 border border-amber-200/60 font-semibold text-slate-800">
+                      <span className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-amber-400 text-white font-black flex items-center justify-center text-[10px]">1</span>
+                        Shenzhen Shekou Eco Hub
+                      </span>
+                      <span className="font-extrabold text-amber-700">1,245.8 kg</span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-3 rounded-xl bg-slate-50 border border-slate-200/60 font-semibold text-slate-700">
+                      <span className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-slate-300 text-slate-700 font-black flex items-center justify-center text-[10px]">2</span>
+                        Hong Kong Cyberport Green Unit
+                      </span>
+                      <span className="font-bold text-slate-800">1,102.4 kg</span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-3 rounded-xl bg-amber-900/5 border border-amber-800/10 font-semibold text-slate-700">
+                      <span className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-amber-700/30 text-amber-900 font-black flex items-center justify-center text-[10px]">3</span>
+                        Guangzhou Science City
+                      </span>
+                      <span className="font-bold text-slate-800">980.5 kg</span>
+                    </div>
+
+                    {/* Current User Highlight */}
+                    <div className="flex justify-between items-center p-3 rounded-xl bg-emerald-600 text-white font-bold shadow-md shadow-emerald-200">
+                      <span className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-emerald-800 text-emerald-200 font-black flex items-center justify-center text-[10px]">14</span>
+                        Your EcoLung Unit (You)
+                      </span>
+                      <span className="font-black text-amber-300">{carbonCumulative.toFixed(1)} kg</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Community Impact Card */}
+                <div className="bg-gradient-to-br from-teal-50 to-emerald-50 p-4 rounded-2xl border border-teal-100 text-center">
+                  <i className="fa-solid fa-users text-teal-600 text-2xl mb-2"></i>
+                  <h4 className="text-xs font-bold text-slate-800">Greater Bay Area Low-Carbon Grid</h4>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Over <strong>12,400 households</strong> connected. Together sequestering <strong>48.2 metric tons</strong> of CO₂ this month!
+                  </p>
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {}
+          <div className="absolute bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200/80 py-2.5 px-3 flex justify-around items-center z-40 rounded-t-2xl shadow-2xl">
+            <button 
+              onClick={() => setCurrentTab('dashboard')} 
+              className={`flex flex-col items-center flex-1 transition-all duration-200 ${currentTab === 'dashboard' ? 'text-emerald-600 font-extrabold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+            >
+              <i className="fa-solid fa-house-signal text-lg mb-0.5"></i>
+              <span className="text-[10px]">Monitor</span>
+            </button>
+
+            <button 
+              onClick={() => setCurrentTab('carbon')} 
+              className={`flex flex-col items-center flex-1 transition-all duration-200 ${currentTab === 'carbon' ? 'text-emerald-600 font-extrabold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+            >
+              <i className="fa-solid fa-leaf text-lg mb-0.5"></i>
+              <span className="text-[10px]">Carbon</span>
+            </button>
+
+            <button 
+              onClick={() => setCurrentTab('rewards')} 
+              className={`flex flex-col items-center flex-1 transition-all duration-200 ${currentTab === 'rewards' ? 'text-emerald-600 font-extrabold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+            >
+              <i className="fa-solid fa-gift text-lg mb-0.5"></i>
+              <span className="text-[10px]">Store</span>
+            </button>
+
+            <button 
+              onClick={() => setCurrentTab('control')} 
+              className={`flex flex-col items-center flex-1 transition-all duration-200 ${currentTab === 'control' ? 'text-emerald-600 font-extrabold scale-105' : 'text-slate-400 font-medium hover:text-slate-600'}`}
+            >
+              <i className="fa-solid fa-trophy text-lg mb-0.5"></i>
+              <span className="text-[10px]">Community</span>
+            </button>
+          </div>
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
