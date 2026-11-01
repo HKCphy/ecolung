@@ -103,7 +103,9 @@
             next[key] = incoming[key];
           }
         });
-        // Actuators stay local UI state until remote hardware control exists.
+        // Sensor snapshots own telemetry only. lightOn / pumpOn stay local
+        // so a systems update cannot undo a toggle that was just sent to
+        // ecolung/commands for the device bridge.
         if (local) {
           next.lightOn = local.lightOn;
           next.pumpOn = local.pumpOn;
@@ -119,6 +121,20 @@
       return digits == null ? String(Math.round(n)) : n.toFixed(digits);
     }
 
+    // Hardware intent is stored apart from live sensors. A Python bridge can
+    // subscribe to ecolung/commands/{location} later and forward to MakerCloud.
+    const HARDWARE_COMMANDS = {
+      lightOn: 'Smart Grow Light',
+      pumpOn: 'Circulation Pump'
+    };
+
+    function publishHardwareCommand(location, field, value) {
+      return rtdb.ref('ecolung/commands').child(location).update({
+        [field]: value,
+        updatedAt: firebase.database.ServerValue.TIMESTAMP
+      });
+    }
+
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard'); 
       const [selectedLocation, setSelectedLocation] = useState('Living Room');
@@ -132,11 +148,13 @@
       // Multi-room bioreactor monitoring data state
       const [systemsData, setSystemsData] = useState({
         'Living Room': { pH: 7.4, temp: 24.5, light: 450, waterLevel: 92, health: 'excellent', lightOn: true, pumpOn: true, biomass: 88 },
-        'Master Bedroom': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: false, pumpOn: true, biomass: 64 },
+        'Master Bedroom': { pH: 7.2, temp: 23.8, light: 150, waterLevel: 85, health: 'good', lightOn: false, pumpOn: true, biomass: 64 }, 
         'Study Room': { pH: 6.8, temp: 25.1, light: 320, waterLevel: 38, health: 'warning', lightOn: false, pumpOn: false, biomass: 42 }, 
         'Kitchen': { pH: 7.5, temp: 26.3, light: 600, waterLevel: 95, health: 'excellent', lightOn: true, pumpOn: true, biomass: 91 },
         'Bathroom': { pH: 5.9, temp: 22.0, light: 80,  waterLevel: 78, health: 'danger', lightOn: false, pumpOn: false, biomass: 25 }   
       });
+      const systemsDataRef = React.useRef(systemsData);
+      systemsDataRef.current = systemsData;
 
       useEffect(() => {
         const interval = setInterval(() => {
@@ -187,12 +205,25 @@
       };
 
       const toggleHardware = (loc, key) => {
+        const hardwareName = HARDWARE_COMMANDS[key];
+        const room = systemsDataRef.current[loc];
+        if (!hardwareName || !room) return;
+
+        const nextValue = !room[key];
+        const nextRoom = { ...room, [key]: nextValue };
+        systemsDataRef.current = { ...systemsDataRef.current, [loc]: nextRoom };
         setSystemsData(prev => {
-          const updatedLoc = { ...prev[loc], [key]: !prev[loc][key] };
-          const hardwareName = key === 'lightOn' ? 'Smart Grow Light' : 'Circulation Pump';
-          const statusText = updatedLoc[key] ? 'Activated' : 'Deactivated';
-          triggerNotification(`${hardwareName} in ${loc} ${statusText}`, 'info');
-          return { ...prev, [loc]: updatedLoc };
+          const current = prev[loc];
+          if (!current) return prev;
+          return { ...prev, [loc]: { ...current, [key]: nextValue } };
+        });
+        triggerNotification(
+          `${hardwareName} in ${loc} ${nextValue ? 'Activated' : 'Deactivated'}`,
+          'info'
+        );
+
+        publishHardwareCommand(loc, key, nextValue).catch(() => {
+          triggerNotification(`Could not sync ${hardwareName} in ${loc} to IoT cloud`, 'error');
         });
       };
 
