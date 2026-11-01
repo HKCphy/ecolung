@@ -18,6 +18,10 @@
   <!-- 4. Lucide / FontAwesome Icons for visuals -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+  <!-- 5. Firebase compat (app + Realtime Database). No build step. -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
     body {
@@ -58,6 +62,63 @@
   <script type="text/babel">
     const { useState, useEffect } = React;
 
+    // Open RTDB test rules expire around 2026-12-01.
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmREIOiakqDrDXVoahYiCSqsZo1xIqg0w",
+      authDomain: "ecolung-79dc1.firebaseapp.com",
+      databaseURL: "https://ecolung-79dc1-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "ecolung-79dc1",
+      storageBucket: "ecolung-79dc1.firebasestorage.app",
+      messagingSenderId: "44372512053",
+      appId: "1:44372512053:web:3b748f5f24830173dc907c"
+    };
+
+    const firebaseApp = (window.firebase.apps && window.firebase.apps.length)
+      ? window.firebase.app()
+      : window.firebase.initializeApp(firebaseConfig);
+    const rtdb = firebaseApp.database();
+
+    const LIVE_SENSOR_KEYS = ['pH', 'temp', 'light', 'waterLevel', 'health', 'biomass'];
+
+    function mergeCloudSystems(localSystems, cloudSystems) {
+      const merged = { ...localSystems };
+      Object.keys(cloudSystems).forEach((location) => {
+        const incoming = cloudSystems[location];
+        if (!incoming || typeof incoming !== 'object') return;
+
+        const local = localSystems[location];
+        const base = local || {
+          pH: 7.0,
+          temp: 24.0,
+          light: 0,
+          waterLevel: 0,
+          health: 'good',
+          lightOn: !!incoming.lightOn,
+          pumpOn: !!incoming.pumpOn,
+          biomass: 0
+        };
+        const next = { ...base };
+        LIVE_SENSOR_KEYS.forEach((key) => {
+          if (incoming[key] !== undefined && incoming[key] !== null) {
+            next[key] = incoming[key];
+          }
+        });
+        // Actuators stay local UI state until remote hardware control exists.
+        if (local) {
+          next.lightOn = local.lightOn;
+          next.pumpOn = local.pumpOn;
+        }
+        merged[location] = next;
+      });
+      return merged;
+    }
+
+    function formatReading(value, digits) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return '—';
+      return digits == null ? String(Math.round(n)) : n.toFixed(digits);
+    }
+
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard'); 
       const [selectedLocation, setSelectedLocation] = useState('Living Room');
@@ -66,6 +127,7 @@
       const [carbonCumulative, setCarbonCumulative] = useState(452.87); 
       const [notification, setNotification] = useState(null); 
       const [isHarvesting, setIsHarvesting] = useState(false);
+      const [iotStatus, setIotStatus] = useState('connecting');
 
       // Multi-room bioreactor monitoring data state
       const [systemsData, setSystemsData] = useState({
@@ -78,37 +140,44 @@
 
       useEffect(() => {
         const interval = setInterval(() => {
-          // Increment sequestration numbers realistically
           setCarbonDaily(prev => parseFloat((prev + 0.01).toFixed(2)));
           setCarbonCumulative(prev => parseFloat((prev + 0.00005).toFixed(5)));
-          
-          setSystemsData(prev => {
-            const copy = {};
-            Object.keys(prev).forEach(loc => {
-              copy[loc] = { ...prev[loc] };
-            });
-
-            // Simulate micro environment fluctuations
-            Object.keys(copy).forEach(loc => {
-              const sys = copy[loc];
-              sys.temp = parseFloat((sys.temp + (Math.random() * 0.2 - 0.1)).toFixed(1));
-              
-              if (sys.lightOn) {
-                sys.light = Math.min(1000, Math.max(750, Math.round(sys.light + (Math.random() * 12 - 6))));
-              } else {
-                sys.light = Math.max(10, Math.min(400, Math.round(sys.light + (Math.random() * 10 - 5))));
-              }
-
-              // Slowly grow biomass if conditions are ideal
-              if (sys.health === 'excellent' && sys.biomass < 99) {
-                sys.biomass = Math.min(100, parseFloat((sys.biomass + 0.05).toFixed(1)));
-              }
-            });
-            return copy;
-          });
         }, 2000);
-
         return () => clearInterval(interval);
+      }, []);
+
+      useEffect(() => {
+        let receivedSnapshot = false;
+        const systemsRef = rtdb.ref('ecolung/systems');
+        const connectedRef = rtdb.ref('.info/connected');
+
+        const handleSystems = (snapshot) => {
+          receivedSnapshot = true;
+          setIotStatus('live');
+          const cloud = snapshot.val();
+          if (!cloud || typeof cloud !== 'object') return;
+          setSystemsData((prev) => mergeCloudSystems(prev, cloud));
+        };
+
+        const handleSystemsError = () => setIotStatus('offline');
+
+        const handleConnected = (snapshot) => {
+          if (!receivedSnapshot) return;
+          setIotStatus(snapshot.val() === true ? 'live' : 'offline');
+        };
+
+        systemsRef.on('value', handleSystems, handleSystemsError);
+        connectedRef.on('value', handleConnected);
+
+        const giveUp = setTimeout(() => {
+          if (!receivedSnapshot) setIotStatus('offline');
+        }, 10000);
+
+        return () => {
+          clearTimeout(giveUp);
+          systemsRef.off('value', handleSystems);
+          connectedRef.off('value', handleConnected);
+        };
       }, []);
 
       // Helper function to show notifications
@@ -120,9 +189,6 @@
       const toggleHardware = (loc, key) => {
         setSystemsData(prev => {
           const updatedLoc = { ...prev[loc], [key]: !prev[loc][key] };
-          if (key === 'lightOn') {
-            updatedLoc.light = updatedLoc.lightOn ? 800 : 250;
-          }
           const hardwareName = key === 'lightOn' ? 'Smart Grow Light' : 'Circulation Pump';
           const statusText = updatedLoc[key] ? 'Activated' : 'Deactivated';
           triggerNotification(`${hardwareName} in ${loc} ${statusText}`, 'info');
@@ -189,8 +255,13 @@
               <i className="fa-solid fa-leaf text-emerald-400"></i> EcoLung v1.2
             </span>
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span className="text-[11px] text-emerald-300/80 font-medium">IoT Cloud Online</span>
+              <span className={`w-2 h-2 rounded-full ${
+                iotStatus === 'live' ? 'bg-emerald-400 animate-ping' :
+                iotStatus === 'offline' ? 'bg-rose-400' : 'bg-amber-300 animate-pulse'
+              }`}></span>
+              <span className="text-[11px] text-emerald-300/80 font-medium">
+                {iotStatus === 'live' ? 'IoT Cloud Live' : iotStatus === 'offline' ? 'IoT Cloud Offline' : 'IoT Cloud Syncing'}
+              </span>
             </div>
           </div>
 
@@ -312,7 +383,7 @@
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">pH Level</p>
-                      <p className="text-base font-black text-slate-800">{currentData.pH}</p>
+                      <p className="text-base font-black text-slate-800">{formatReading(currentData.pH, 1)}</p>
                     </div>
                   </div>
 
@@ -322,7 +393,7 @@
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Water Temp</p>
-                      <p className="text-base font-black text-slate-800">{currentData.temp} <span className="text-xs font-medium text-slate-400">°C</span></p>
+                      <p className="text-base font-black text-slate-800">{formatReading(currentData.temp, 1)} <span className="text-xs font-medium text-slate-400">°C</span></p>
                     </div>
                   </div>
 
@@ -332,7 +403,7 @@
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Light Intensity</p>
-                      <p className="text-base font-black text-slate-800">{currentData.light} <span className="text-xs font-medium text-slate-400">Lux</span></p>
+                      <p className="text-base font-black text-slate-800">{formatReading(currentData.light)} <span className="text-xs font-medium text-slate-400">Lux</span></p>
                     </div>
                   </div>
 
@@ -342,7 +413,7 @@
                     </div>
                     <div>
                       <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Water Level</p>
-                      <p className="text-base font-black text-slate-800">{currentData.waterLevel} <span className="text-xs font-medium text-slate-400">%</span></p>
+                      <p className="text-base font-black text-slate-800">{formatReading(currentData.waterLevel)} <span className="text-xs font-medium text-slate-400">%</span></p>
                     </div>
                   </div>
                 </div>
